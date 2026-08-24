@@ -1,0 +1,14 @@
+{
+  "name": "Sandboxed Agent Workspace",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "runArgs": [
+    "--memory=6g",
+    "--cpus=4.0",
+    "--pids-limit=100",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges:true",
+    "--read-only",
+    "--tmpfs=/tmp:rw,noexec,nosuid"
+  ],
+  "remoteUser": "vscode"
+}

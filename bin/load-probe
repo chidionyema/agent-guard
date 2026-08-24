@@ -1,0 +1,15 @@
+#!/bin/bash
+# Tier 2. Report only. Checks the CPU speed limit before blaming any process:
+# on 2026-08-24 load 227 was a 23% thermal cap, not a runaway.
+set -u
+MAX_LOAD_PER_CORE="${MAX_LOAD_PER_CORE:-2}"
+cores=$(sysctl -n hw.ncpu)
+load=$(sysctl -n vm.loadavg | awk '{print $2}')
+speed=$(pmset -g therm 2>/dev/null | awk '/CPU_Speed_Limit/{print $3}'); speed=${speed:-100}
+per_core=$(awk -v l="$load" -v c="$cores" 'BEGIN{printf "%.2f", l/c}')
+echo "cpu_speed_limit=$speed load1=$load cores=$cores load_per_core=$per_core"
+[ "$speed" -lt 100 ] && echo "THROTTLED: the CPU runs at ${speed}% speed; load is inflated by that before any process is guilty"
+echo "--- hottest (second top frame) ---"
+top -l 2 -n 8 -o cpu -stats pid,ppid,cpu,command | tail -8
+awk -v p="$per_core" -v m="$MAX_LOAD_PER_CORE" 'BEGIN{exit !(p+0 > m+0)}' && { echo "OVER: load_per_core $per_core > $MAX_LOAD_PER_CORE"; exit 1; }
+echo "OK"

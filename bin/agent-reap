@@ -1,0 +1,21 @@
+#!/bin/bash
+# Tier 1. Report orphaned agent browser/runtime children; kill only with --kill.
+# A Chrome with a window is a user's browser: parent is launchd and no --headless flag.
+set -u
+KILL=0; [ "${1:-}" = "--kill" ] && KILL=1
+PS_SRC="${AGENT_REAP_PS:-}"   # selftest injects a ps snapshot
+if [ -n "$PS_SRC" ]; then ps_out=$(cat "$PS_SRC"); else ps_out=$(ps -axo pid=,ppid=,command=); fi
+found=0
+while read -r pid ppid cmd; do
+  [ -z "${pid:-}" ] && continue
+  [ "$ppid" = "1" ] || continue                       # orphan = parent is launchd
+  case "$cmd" in
+    *--headless*|*chromedriver*|*playwright*|*ms-playwright*|*node*|*Node*) ;;
+    *) continue ;;
+  esac
+  found=$((found+1))
+  echo "ORPHAN pid=$pid ppid=$ppid ${cmd:0:120}"
+  if [ $KILL = 1 ] && [ -z "$PS_SRC" ]; then kill "$pid" 2>/dev/null && echo "  killed $pid"; fi
+done <<< "$ps_out"
+echo "orphans=$found mode=$([ $KILL = 1 ] && echo kill || echo report)"
+[ $found = 0 ]

@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""Tier 2. A periodic launchd user job must run at Nice >= 10, and a job that
+repeats every hour or more must not also fire at boot (RunAtLoad).
+
+Measured 2026-08-24: 24 of 39 periodic jobs fired together at boot on a CPU
+throttled to 23% speed; load reached 227 on 12 cores. Exit 1 lists offenders.
+
+    launchd-lint            # ~/Library/LaunchAgents
+    launchd-lint DIR        # any directory of plists
+    launchd-lint --selftest
+"""
+from __future__ import annotations
+import plistlib, sys
+from pathlib import Path
+
+MIN_NICE = 10
+LONG_INTERVAL = 3600
+SKIP_PREFIX = ("com.adobe.", "com.google.", "com.apple.")  # not this estate's jobs
+
+def problems(path: Path) -> list[str]:
+    try:
+        with path.open("rb") as fh:
+            d = plistlib.load(fh)
+    except Exception as exc:  # unreadable is BLIND, reported as its own line
+        return [f"BLIND {type(exc).__name__}: {exc}"]
+    periodic = "StartInterval" in d or "StartCalendarInterval" in d
+    if not periodic:
+        return []
+    out = []
+    nice = int(d.get("Nice", 0))
+    if nice < MIN_NICE:
+        out.append(f"Nice={nice} (< {MIN_NICE})")
+    if d.get("RunAtLoad") and int(d.get("StartInterval", 0)) >= LONG_INTERVAL:
+        out.append(f"RunAtLoad with StartInterval={d['StartInterval']}: fires at boot")
+    return out
+
+def lint(root: Path) -> int:
+    bad = 0; checked = 0
+    for p in sorted(root.glob("*.plist")):
+        if p.name.startswith(SKIP_PREFIX):
+            continue
+        checked += 1
+        for why in problems(p):
+            bad += 1
+            print(f"{'BLIND ' if why.startswith('BLIND') else 'BROKEN'} {p.name}: {why}")
+    print(f"checked={checked} broken={bad}")
+    return 1 if bad else 0
+
+def selftest() -> int:
+    import tempfile
+    t = Path(tempfile.mkdtemp())
+    def w(name, d):
+        with (t / name).open("wb") as fh: plistlib.dump(d, fh)
+    w("bad.plist",  {"Label": "bad",  "StartInterval": 14400, "RunAtLoad": True, "Nice": 5})
+    w("good.plist", {"Label": "good", "StartInterval": 14400, "RunAtLoad": False, "Nice": 10})
+    w("daemon.plist", {"Label": "d", "RunAtLoad": True, "KeepAlive": True})  # not periodic: exempt
+    b, g, dm = problems(t / "bad.plist"), problems(t / "good.plist"), problems(t / "daemon.plist")
+    ok = len(b) == 2 and g == [] and dm == []
+    print(f"must_fail={len(b)} must_pass={len(g)} daemon_exempt={len(dm)}")
+    print("PASS" if ok else "FAIL")
+    return 0 if ok else 1
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    if a == ["--selftest"]:
+        sys.exit(selftest())
+    sys.exit(lint(Path(a[0]) if a else Path.home() / "Library" / "LaunchAgents"))
