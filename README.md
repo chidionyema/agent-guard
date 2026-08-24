@@ -34,3 +34,11 @@ proposed spec against that measurement.
 
 `launchd-lint` reads plist files, not the loaded definition; a job edited on disk but not
 reloaded still runs the old definition. `load-probe` cannot see inside colima's VM.
+
+## Installed on this machine (2026-08-24)
+
+- 30 of 49 periodic plists in `~/Library/LaunchAgents` edited: `Nice=10` where lower, `RunAtLoad=false`
+  where `StartInterval >= 3600`. Originals were not in git anywhere (LAW 24 residual).
+- `~/.claude/scripts/directive-capture.py` spawns `directives.py --backfill` at `os.nice(19)`.
+- `launchd/ai.estate.agent-guard-lint.plist` runs `launchd-lint --broadcast-on-red` every 6 h.
+  Install: `cp launchd/ai.estate.agent-guard-lint.plist ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.estate.agent-guard-lint.plist`

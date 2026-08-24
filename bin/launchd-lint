@@ -34,8 +34,18 @@ def problems(path: Path) -> list[str]:
         out.append(f"RunAtLoad with StartInterval={d['StartInterval']}: fires at boot")
     return out
 
-def lint(root: Path) -> int:
-    bad = 0; checked = 0
+def broadcast(lines: list[str]) -> None:
+    """Post a red result to the estate board so a person sees it (LAW 28)."""
+    import subprocess
+    b = Path.home() / ".claude" / "scripts" / "estate-broadcast.py"
+    if not b.exists():
+        print("broadcast=BLIND estate-broadcast.py missing"); return
+    msg = f"launchd-lint is RED: {len(lines)} periodic job(s) can storm the CPU: " + "; ".join(lines[:8])
+    subprocess.run([sys.executable, str(b), "--from", "launchd-lint", "--kind", "alert", "--message", msg], check=False)
+    print("broadcast=posted")
+
+def lint(root: Path, broadcast_on_red: bool = False) -> int:
+    bad = 0; checked = 0; lines = []
     for p in sorted(root.glob("*.plist")):
         if p.name.startswith(SKIP_PREFIX):
             continue
@@ -43,7 +53,10 @@ def lint(root: Path) -> int:
         for why in problems(p):
             bad += 1
             print(f"{'BLIND ' if why.startswith('BLIND') else 'BROKEN'} {p.name}: {why}")
+            lines.append(f"{p.name}: {why}")
     print(f"checked={checked} broken={bad}")
+    if bad and broadcast_on_red:
+        broadcast(lines)
     return 1 if bad else 0
 
 def selftest() -> int:
@@ -64,4 +77,5 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     if a == ["--selftest"]:
         sys.exit(selftest())
-    sys.exit(lint(Path(a[0]) if a else Path.home() / "Library" / "LaunchAgents"))
+    red = "--broadcast-on-red" in a; a = [x for x in a if x != "--broadcast-on-red"]
+    sys.exit(lint(Path(a[0]) if a else Path.home() / "Library" / "LaunchAgents", red))
