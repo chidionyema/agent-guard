@@ -13,5 +13,5 @@ cat > "$snap" <<'PS'
 PS
 out=$(AGENT_REAP_PS="$snap" "$here/bin/agent-reap"); rc=$?
 echo "$out"
-grep -q "pid=910" <<<"$out" && grep -q "pid=920" <<<"$out" && ! grep -q "pid=437\|pid=900\|pid=930" <<<"$out" && [ $rc = 1 ] && echo PASS && exit 0
+grep -q "pid=910" <<<"$out" && grep -q "pid=920" <<<"$out" && ! grep -q "pid=437\|pid=900\|pid=930\|pid=940" <<<"$out" && [ $rc = 1 ] && echo PASS && exit 0
 echo FAIL; exit 1
